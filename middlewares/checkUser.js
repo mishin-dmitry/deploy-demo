@@ -1,7 +1,6 @@
-const checkUserWithRedirect = () => (req, res, next) => (req.user ? next() : res.redirect("/"));
-const checkUserWithSendStatus = () => (req, res, next) => (req.user ? next() : res.sendStatus(401));
+const checkUserWithRedirect = () => (req, res, next) =>
+  req.user ? next() : res.redirect("/");
 
 module.exports = {
   checkUserWithRedirect,
-  checkUserWithSendStatus,
 };

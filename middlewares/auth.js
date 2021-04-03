@@ -1,22 +1,22 @@
-const { findUserBySessionId } = require("../db");
+const { findUserByToken } = require("../db");
 
 const auth = async (req, res, next) => {
-  const sessionId = req.cookies["sessionId"];
+  const token = req.cookies["token"];
 
-  if (!sessionId) {
+  if (!token) {
     return next();
   }
 
   try {
-    const user = await findUserBySessionId(sessionId);
+    const user = await findUserByToken(token);
 
     if (!user) {
-      res.clearCookie("sessionId").redirect("/");
+      res.clearCookie("token").redirect("/");
       return next();
     }
 
     req.user = user;
-    req.sessionId = sessionId;
+    req.token = token;
     next();
   } catch (e) {
     console.error(e);

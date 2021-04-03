@@ -3,9 +3,12 @@ const bodyParser = require("body-parser");
 const auth = require("../middlewares/auth");
 const { checkUserWithRedirect } = require("../middlewares/checkUser");
 const { hash } = require("../utils");
-const { deleteSession } = require("../db");
-const { createUser } = require("../db");
-const { findUserByName, createSession } = require("../db");
+const {
+  findUserByName,
+  createToken,
+  deleteToken,
+  createUser,
+} = require("../db");
 
 const router = express.Router();
 const urlEncoded = bodyParser.urlencoded({ extended: false });
@@ -28,8 +31,8 @@ router.post("/login", urlEncoded, async (req, res) => {
       return res.redirect("/?authError=true");
     }
 
-    const sessionId = await createSession(user.id);
-    res.cookie("sessionId", sessionId, DEFAULT_COOKIE_OPTIONS).redirect("/");
+    const token = await createToken(user.id);
+    res.cookie("token", token, DEFAULT_COOKIE_OPTIONS).redirect("/");
   } catch (e) {
     res.status(500).send("Error during login");
   }
@@ -37,9 +40,9 @@ router.post("/login", urlEncoded, async (req, res) => {
 
 router.get("/logout", auth, checkUserWithRedirect(), async (req, res) => {
   try {
-    await deleteSession(req.sessionId);
+    await deleteToken(req.token);
 
-    res.clearCookie("sessionId").redirect("/");
+    res.clearCookie("token").redirect("/");
   } catch (e) {
     res.status(500).send("Error deleting session");
   }
@@ -59,9 +62,9 @@ router.post("/signup", urlEncoded, async (req, res) => {
 
   try {
     const userId = await createUser(userData);
-    const sessionId = await createSession(userId);
+    const token = await createToken(userId);
 
-    res.cookie("sessionId", sessionId, DEFAULT_COOKIE_OPTIONS).redirect("/");
+    res.cookie("token", token, DEFAULT_COOKIE_OPTIONS).redirect("/");
   } catch (e) {
     if (e.code === USER_ALREADY_EXIST_ERROR_CODE) {
       return res.status(409).send("User already exist");
@@ -74,7 +77,11 @@ router.post("/signup", urlEncoded, async (req, res) => {
 router.get("/", auth, (req, res) => {
   res.render("index", {
     user: req.user,
-    authError: req.query.authError === "true" ? "Wrong username or password" : req.query.authError,
+    userToken: req.token,
+    authError:
+      req.query.authError === "true"
+        ? "Wrong username or password"
+        : req.query.authError,
   });
 });
 

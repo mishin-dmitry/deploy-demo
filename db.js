@@ -1,50 +1,53 @@
 require("dotenv").config();
+
 const { nanoid } = require("nanoid");
 const { client, connection } = require("./knexfile");
 
 const knex = require("knex")({ client, connection });
 
-const deleteSession = async (sessionId) => {
-  await knex("sessions").where({ session_id: sessionId }).delete();
+const deleteToken = async (token) => {
+  await knex("tokens").where({ token }).delete();
 };
 
 const findUserByName = async (username) => {
-  return await knex("users")
+  return knex("users")
     .where({ username })
     .limit(1)
     .then((result) => result[0]);
 };
 
 const getUserById = async (userId) => {
-  return await knex("users")
+  return knex("users")
     .where({ id: userId })
     .limit(1)
     .then((result) => result[0]);
 };
 
-const findUserBySessionId = async (sessionId) => {
-  const session = await knex("sessions")
+const findUserByToken = async (token) => {
+  const searchedToken = await knex("tokens")
     .select("user_id")
-    .where({ session_id: sessionId })
+    .where({ token })
     .limit(1)
     .then((result) => result[0]);
 
-  return session && getUserById(session.user_id);
+  return searchedToken && getUserById(searchedToken.user_id);
 };
 
-const createSession = async (userId) => {
-  const sessionId = nanoid();
+const createToken = async (userId) => {
+  const token = nanoid();
 
-  await knex("sessions").insert({
+  await knex("tokens").insert({
     user_id: userId,
-    session_id: sessionId,
+    token,
   });
 
-  return sessionId;
+  return token;
 };
 
 const createUser = async ({ username, password }) => {
-  const [id] = await knex("users").insert({ username, password }).returning("id");
+  const [id] = await knex("users")
+    .insert({ username, password })
+    .returning("id");
 
   return id;
 };
@@ -63,7 +66,10 @@ const addTimer = async (userId, description) => {
 };
 
 const getTimers = async (userId, isActive) => {
-  const timers = await knex("timers").where({ user_id: userId, is_active: isActive });
+  const timers = await knex("timers").where({
+    user_id: userId,
+    is_active: isActive,
+  });
 
   return timers.map((timer) => ({
     id: timer.id,
@@ -97,13 +103,13 @@ const findTimer = async (userId, timerId) => {
 };
 
 module.exports = {
-  deleteSession,
+  deleteToken,
   findUserByName,
-  findUserBySessionId,
-  createSession,
+  findUserByToken,
   createUser,
   addTimer,
   getTimers,
   stopTimer,
   findTimer,
+  createToken,
 };

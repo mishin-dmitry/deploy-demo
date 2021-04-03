@@ -20,61 +20,45 @@
       status: "success",
     });
 
-  const fetchJson = (...args) =>
-    fetch(...args)
-      .then((res) =>
-        res.ok
-          ? res.status !== 204
-            ? res.json()
-            : null
-          : res.text().then((text) => {
-              throw new Error(text);
-            })
-      )
-      .catch((err) => {
-        alert(err.message);
-      });
-
   new Vue({
     el: "#app",
     data: {
       desc: "",
       activeTimers: [],
       oldTimers: [],
+      client: null,
     },
     methods: {
-      fetchActiveTimers() {
-        fetchJson("/api/timers?isActive=true").then((activeTimers) => {
-          this.activeTimers = activeTimers;
-        });
-      },
-      fetchOldTimers() {
-        fetchJson("/api/timers?isActive=false").then((oldTimers) => {
-          this.oldTimers = oldTimers;
-        });
-      },
       createTimer() {
         const description = this.desc;
         this.desc = "";
-        fetchJson("/api/timers", {
-          method: "post",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ description }),
-        }).then(({ id }) => {
-          info(`Created new timer "${description}" [${id}]`);
-          this.fetchActiveTimers();
+
+        const addTimerMessage = JSON.stringify({
+          type: "create_timer",
+          description,
         });
+
+        this.client.send(addTimerMessage);
+      },
+      createTimerSuccess(description = "", id = "") {
+        info(`Created new timer "${description}" [${id}]`);
+      },
+      createTimerError(error) {
+        alert(error);
       },
       stopTimer(id) {
-        fetchJson(`/api/timers/${id}/stop`, {
-          method: "post",
-        }).then(() => {
-          info(`Stopped the timer [${id}]`);
-          this.fetchActiveTimers();
-          this.fetchOldTimers();
+        const stopTimerMessage = JSON.stringify({
+          type: "stop_timer",
+          id,
         });
+
+        this.client.send(stopTimerMessage);
+      },
+      stopTimerSuccess(id) {
+        info(`Stopped the timer [${id}]`);
+      },
+      stopTimerError(error) {
+        alert(error);
       },
       formatTime(ts) {
         return new Date(ts).toTimeString().split(" ")[0];
@@ -90,13 +74,45 @@
           .map((x) => (x < 10 ? "0" : "") + x)
           .join(":");
       },
+      activeTimersHandle(timers) {
+        const { activeTimers } = timers;
+
+        this.activeTimers = activeTimers;
+      },
+      allTimersHandle(timers) {
+        const { activeTimers, oldTimers } = timers;
+
+        this.activeTimers = activeTimers;
+        this.oldTimers = oldTimers;
+      },
     },
     created() {
-      this.fetchActiveTimers();
-      setInterval(() => {
-        this.fetchActiveTimers();
-      }, 1000);
-      this.fetchOldTimers();
+      const wsProtocol = location.protocol === "https" ? "wss:" : "ws:";
+      this.client = new WebSocket(`${wsProtocol}//${location.host}`);
+
+      this.client.addEventListener("message", (message) => {
+        let data;
+        try {
+          data = JSON.parse(message.data);
+        } catch (e) {
+          return;
+        }
+
+        switch (data.type) {
+          case "all_timers":
+            return this.allTimersHandle(data.message);
+          case "active_timers":
+            return this.activeTimersHandle(data.message);
+          case "timer_stopped_success":
+            return this.stopTimerSuccess(data.id);
+          case "timer_stopped_error":
+            return this.stopTimerError(data.error);
+          case "timer_created_success":
+            return this.createTimerSuccess(data.description, data.id);
+          case "timer_created_error":
+            return this.createTimerError(data.error);
+        }
+      });
     },
   });
 })();
